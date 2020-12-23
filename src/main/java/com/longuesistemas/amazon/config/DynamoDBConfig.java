@@ -17,7 +17,7 @@ import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapperConfig;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 
 @Configuration
-@EnableDynamoDBRepositories(basePackages = "com.longuesistemas.repository.dynamo")
+@EnableDynamoDBRepositories(basePackages = "com.longuesistemas.repository")
 public class DynamoDBConfig {
 
     @Value("${amazon.dynamodb.endpoint}")
