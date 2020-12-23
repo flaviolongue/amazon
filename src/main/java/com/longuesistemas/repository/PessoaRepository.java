@@ -6,8 +6,8 @@ import org.springframework.stereotype.Repository;
 
 import com.longuesistemas.dto.Pessoa;
 
-@Repository
 @EnableScan
-public interface PessoaRepository extends CrudRepository<Pessoa, Long>{
+@Repository
+public interface PessoaRepository extends CrudRepository<Pessoa, String>{
 
 }

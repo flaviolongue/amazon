@@ -17,7 +17,7 @@ import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapperConfig;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 
 @Configuration
-@EnableDynamoDBRepositories(basePackages = "com.longuesistemas.repository.dynamo")
+@EnableDynamoDBRepositories(basePackages = "com.longuesistemas.repository")
 public class DynamoDBConfig {
 
     @Value("${amazon.dynamodb.endpoint}")
@@ -33,12 +33,12 @@ public class DynamoDBConfig {
     private String awsRegion;
     
     
-    @Bean
+    @Primary
     public AWSCredentialsProvider amazonAWSCredentialsProvider() {
 		return new AWSStaticCredentialsProvider(amazonAWSCredentials());
 	}
 
-	@Bean
+	@Primary
 	public AWSCredentials amazonAWSCredentials() {
 		return new BasicAWSCredentials(awsAccessKey, awsSecretKey);
 	}
