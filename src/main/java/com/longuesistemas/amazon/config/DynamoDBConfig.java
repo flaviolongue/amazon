@@ -33,12 +33,12 @@ public class DynamoDBConfig {
     private String awsRegion;
     
     
-    @Bean
+    @Primary
     public AWSCredentialsProvider amazonAWSCredentialsProvider() {
 		return new AWSStaticCredentialsProvider(amazonAWSCredentials());
 	}
 
-	@Bean
+    @Primary
 	public AWSCredentials amazonAWSCredentials() {
 		return new BasicAWSCredentials(awsAccessKey, awsSecretKey);
 	}

@@ -8,6 +8,6 @@ import com.longuesistemas.dto.Pessoa;
 
 @Repository
 @EnableScan
-public interface PessoaRepository extends CrudRepository<Pessoa, Long>{
+public interface PessoaRepository extends CrudRepository<Pessoa, String>{
 
 }
