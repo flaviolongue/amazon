@@ -15,6 +15,7 @@ public class Pessoa {
 	private String endereco;
 	private String celular;
 	private String cpf;
+	private Integer cCedrit;
 	
 	
 	@DynamoDBHashKey
@@ -53,6 +54,12 @@ public class Pessoa {
 	}
 	public void setCpf(String cpf) {
 		this.cpf = cpf;
+	}
+	public Integer getcCedrit() {
+		return cCedrit;
+	}
+	public void setcCedrit(Integer cCedrit) {
+		this.cCedrit = cCedrit;
 	}
 	
 	
