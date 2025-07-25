@@ -18,7 +18,7 @@ pipeline {
           unzip -o dc.zip -d dc
           chmod +x dc/dependency-check/bin/dependency-check.sh
           ./dc/dependency-check/bin/dependency-check.sh \
-            --project pagamentos-confitec \
+            --project amazon-poc \
             --scan . \
             --format XML \
             --out reports \
@@ -51,7 +51,7 @@ pipeline {
                 -H "Content-Type: application/json" \\
                 -d '{
                       "name": "Build-${env.BUILD_NUMBER}",
-                      "product": 1,
+                      "product": 2,
                       "engagement_type": "CI/CD",
                       "target_start": "${today}",
                       "target_end": "${today}",
