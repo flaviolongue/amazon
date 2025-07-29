@@ -1,28 +1,59 @@
 pipeline {
-  agent any
+  agent any // Ou um agente específico com label 'java-agent'
 
   environment {
     GIT_CREDENTIALS_ID = 'github-token'
-    DEFECTDOJO_URL = 'https://defectdojo.dev4cloud.online'
-    DEFECTDOJO_TOKEN = 'b496d5dd233e7de0fb3f27721d9a76160cfdf7a4'
- 
+    DEFECTDOJO_URL = 'https://defectodojo.dev4cloud.online'
+    // ATENÇÃO: NUNCA COLOQUE TOKENS DIRETAMENTE AQUI.
+    // Use Jenkins Credentials. Crie uma credencial 'Secret text' com o ID 'DEFECTDOJO_API_KEY'
+    DEFECTDOJO_API_KEY = credentials('DEFECTDOJO_API_KEY')
+    // ID do produto no DefectDojo onde os resultados serão enviados
+    // Substitua '2' pelo ID real do seu produto no DefectDojo
+    DEFECTDOJO_PRODUCT_ID = '2' // Exemplo: '2' para o seu produto 'amazon-poc'
+
+    // Para Snyk CLI: Crie uma credencial 'Secret text' com o ID 'SNYK_TOKEN'
+    SNYK_TOKEN = credentials('SNYK_TOKEN')
   }
 
   stages {
 
+    stage('Build do Projeto Java') {
+        steps {
+            script {
+                // Este passo é importante para garantir que as dependências estejam resolvidas
+                // e os arquivos de build estejam prontos para as ferramentas SCA.
+                // Adapte conforme o seu projeto (Maven ou Gradle)
+                if (fileExists('pom.xml')) {
+                    echo 'Detectado projeto Maven. Executando build...'
+                    sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+                } else if (fileExists('build.gradle')) {
+                    echo 'Detectado projeto Gradle. Executando build...'
+                    sh 'gradle build -x test' // -x test para agilizar a análise de segurança
+                } else {
+                    echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
+                    // Se o projeto não for Java ou não precisar de build, você pode remover ou comentar este bloco.
+                }
+            }
+        }
+    }
+
     stage('OWASP Dependency Check') {
       steps {
         sh '''
+          echo "Iniciando OWASP Dependency Check..."
           mkdir -p reports
+          # Baixa e descompacta o Dependency-Check
           curl -L -o dc.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
           unzip -o dc.zip -d dc
           chmod +x dc/dependency-check/bin/dependency-check.sh
+          # Executa o scan
           ./dc/dependency-check/bin/dependency-check.sh \
             --project amazon-poc \
             --scan . \
             --format XML \
             --out reports \
-            --disableAssembly
+            --disableAssembly # Desabilita análise de assemblies .NET se não for relevante
+          echo "OWASP Dependency Check concluído."
         '''
       }
     }
@@ -30,28 +61,82 @@ pipeline {
     stage('Trivy Dependencies') {
       steps {
         sh '''
+          echo "Iniciando Trivy Dependencies Scan..."
           mkdir -p reports
+          # Instala o Trivy
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -
+          # Executa o scan de dependências
           ./bin/trivy fs . \
             --scanners vuln \
             --vuln-type library \
             --format json \
             --output reports/trivy-deps.json
+          echo "Trivy Dependencies Scan concluído."
         '''
       }
     }
+
+    stage('Gerar SBOM com Syft') {
+        steps {
+            sh '''
+                echo "Iniciando geração de SBOM com Syft..."
+                mkdir -p reports
+                # Instala o Syft
+                curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+                # Gera SBOM no formato CycloneDX JSON
+                syft . -o cyclonedx-json > reports/sbom.json
+                echo 'SBOM gerado com sucesso: reports/sbom.json'
+            '''
+        }
+    }
+
+    stage('Escanear SBOM com Grype') {
+        steps {
+            sh '''
+                echo "Iniciando scan de SBOM com Grype..."
+                mkdir -p reports
+                # Instala o Grype
+                curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+                # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
+                grype sbom.json -o sarif > reports/grype-report.sarif
+                echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
+            '''
+        }
+    }
+
+    stage('Snyk CLI Scan') {
+        steps {
+            script {
+                echo "Iniciando Snyk CLI Scan..."
+                sh '''
+                    mkdir -p reports
+                    # Instala o Snyk CLI (via npm, requer Node.js no agente)
+                    # Se Node.js não estiver disponível, você pode baixar o binário diretamente:
+                    # curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk && chmod +x /usr/local/bin/snyk
+                    npm install -g snyk
+                '''
+                // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
+                sh "snyk auth ${SNYK_TOKEN}"
+                // Executa o scan de dependências do Snyk
+                // '|| true' para que a etapa não falhe imediatamente se vulnerabilidades forem encontradas
+                sh "snyk test --all-projects --json-file=reports/snyk-report.json || true"
+                echo 'Relatório Snyk gerado: reports/snyk-report.json'
+            }
+        }
+    }
+
     stage('Criar Engagement DefectDojo') {
       steps {
         script {
           def today = sh(script: "date +%F", returnStdout: true).trim()
           def response = sh(
             script: """
-              curl -s -X POST https://defectdojo.dev4cloud.online/api/v2/engagements/ \\
-                -H "Authorization: Token b496d5dd233e7de0fb3f27721d9a76160cfdf7a4" \\
-                -H "Content-Type: application/json" \\
+              curl -s -X POST ${DEFECTDOJO_URL}/api/v2/engagements/ \
+                -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+                -H "Content-Type: application/json" \
                 -d '{
                       "name": "Build-${env.BUILD_NUMBER}",
-                      "product": 2,
+                      "product": ${DEFECTDOJO_PRODUCT_ID},
                       "engagement_type": "CI/CD",
                       "target_start": "${today}",
                       "target_end": "${today}",
@@ -61,22 +146,25 @@ pipeline {
             """,
             returnStdout: true
           ).trim()
-        
-          def engagementId = new groovy.json.JsonSlurperClassic().parseText(response).id
-          env.ENGAGEMENT_ID = "${engagementId}" 
-        }
 
+          def engagementId = new groovy.json.JsonSlurperClassic().parseText(response).id
+          env.ENGAGEMENT_ID = "${engagementId}"
+          echo "Engagement DefectDojo criado com ID: ${env.ENGAGEMENT_ID}"
+        }
       }
     }
+
     stage('Publicar Relatórios') {
       steps {
-        archiveArtifacts artifacts: 'reports/*.json'
+        // Arquiva todos os relatórios gerados para fácil acesso no Jenkins
+        archiveArtifacts artifacts: 'reports/*', fingerprint: true
 
-        // Enviar OWASP
-        sh '''
-          curl -X POST "$DEFECTDOJO_URL/api/v2/import-scan/" \
-            -H "Authorization: Token $DEFECTDOJO_TOKEN" \
-            -F "engagement=$ENGAGEMENT_ID" \
+        // Enviar OWASP Dependency-Check
+        sh """
+          echo "Enviando relatório OWASP Dependency-Check para DefectDojo..."
+          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+            -F "engagement=${ENGAGEMENT_ID}" \
             -F "scan_type=Dependency Check Scan" \
             -F "minimum_severity=Low" \
             -F "active=true" \
@@ -86,13 +174,15 @@ pipeline {
             -F "tags=sca,owasp" \
             -F "close_old_findings=false" \
             -F "description=Relatório gerado pelo OWASP Dependency-Check (POC SCA)"
-        '''
+          echo "Relatório OWASP Dependency-Check enviado."
+        """
 
         // Enviar Trivy
-        sh '''
-          curl -X POST "$DEFECTDOJO_URL/api/v2/import-scan/" \
-            -H "Authorization: Token $DEFECTDOJO_TOKEN" \
-            -F "engagement=$ENGAGEMENT_ID" \
+        sh """
+          echo "Enviando relatório Trivy para DefectDojo..."
+          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+            -F "engagement=${ENGAGEMENT_ID}" \
             -F "scan_type=Trivy Scan" \
             -F "minimum_severity=Low" \
             -F "active=true" \
@@ -102,8 +192,75 @@ pipeline {
             -F "tags=sca,trivy" \
             -F "close_old_findings=false" \
             -F "description=Relatório gerado pelo Trivy (POC SCA)"
-        '''
+          echo "Relatório Trivy enviado."
+        """
+
+        // Enviar SBOM (Syft)
+        sh """
+          echo "Enviando SBOM (Syft) para DefectDojo..."
+          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "scan_type=CycloneDX Scan" \
+            -F "minimum_severity=Low" \
+            -F "active=true" \
+            -F "verified=true" \
+            -F "file=@reports/sbom.json" \
+            -F "scan_date=$(date +%F)" \
+            -F "tags=sca,syft,sbom" \
+            -F "close_old_findings=false" \
+            -F "description=SBOM gerado pelo Syft (POC SCA)"
+          echo "SBOM (Syft) enviado."
+        """
+
+        // Enviar Grype
+        sh """
+          echo "Enviando relatório Grype para DefectDojo..."
+          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "scan_type=SARIF" \
+            -F "minimum_severity=Low" \
+            -F "active=true" \
+            -F "verified=true" \
+            -F "file=@reports/grype-report.sarif" \
+            -F "scan_date=$(date +%F)" \
+            -F "tags=sca,grype" \
+            -F "close_old_findings=false" \
+            -F "description=Relatório gerado pelo Grype (POC SCA)"
+          echo "Relatório Grype enviado."
+        """
+
+        // Enviar Snyk
+        sh """
+          echo "Enviando relatório Snyk para DefectDojo..."
+          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "scan_type=Snyk Scan" \
+            -F "minimum_severity=Low" \
+            -F "active=true" \
+            -F "verified=true" \
+            -F "file=@reports/snyk-report.json" \
+            -F "scan_date=$(date +%F)" \
+            -F "tags=sca,snyk" \
+            -F "close_old_findings=false" \
+            -F "description=Relatório gerado pelo Snyk CLI (POC SCA)"
+          echo "Relatório Snyk enviado."
+        """
       }
     }
+  }
+
+  post {
+      always {
+          echo 'Pipeline de SCA concluída.'
+          // Limpar arquivos gerados, se necessário
+          sh 'rm -rf reports dc bin snyk-report.json sbom.json grype-report.sarif'
+      }
+      failure {
+          echo 'Pipeline de SCA falhou!'
+          // Adicione aqui lógica para notificação de falha
+      }
   }
 }
