@@ -19,18 +19,19 @@ pipeline {
       stage('Build do Projeto Java') {
         steps {
             script {
-                // Este passo é importante para garantir que as dependências estejam resolvidas
-                // e os arquivos de build estejam prontos para as ferramentas SCA.
-                // Adapte conforme o seu projeto (Maven ou Gradle)
                 if (fileExists('pom.xml')) {
-                    echo 'Detectado projeto Maven. Executando build...'
-                    sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+                    echo 'Detectado projeto Maven. Executando build em contêiner Maven...'
+                    // Entra em um contêiner Maven oficial com JDK 21 para o build
+                    docker.image('maven:3.9.6-openjdk-21').inside {
+                        sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+                    }
                 } else if (fileExists('build.gradle')) {
-                    echo 'Detectado projeto Gradle. Executando build...'
-                    // Garante que o gradlew seja executável
-                    sh 'chmod +x gradlew'
-                    // Executa o build para resolver as dependências, mas pula os testes para agilizar
-                    sh './gradlew build -x test'
+                    echo 'Detectado projeto Gradle. Executando build em contêiner Gradle...'
+                    // Entra em um contêiner Gradle oficial com JDK 21 para o build
+                    docker.image('gradle:8.7-jdk21').inside {
+                        sh 'chmod +x gradlew' // Garante que o gradlew seja executável
+                        sh './gradlew build -x test' // -x test para agilizar a análise de segurança
+                    }
                 } else {
                     echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
                 }
