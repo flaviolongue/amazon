@@ -62,7 +62,7 @@ pipeline {
                 echo "Iniciando geração de SBOM com Syft..."
                 mkdir -p reports
                 # Instala o Syft
-                curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+                curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                 # Gera SBOM no formato CycloneDX JSON
                 syft . -o cyclonedx-json > reports/sbom.json
                 echo 'SBOM gerado com sucesso: reports/sbom.json'
@@ -76,7 +76,7 @@ pipeline {
                 echo "Iniciando scan de SBOM com Grype..."
                 mkdir -p reports
                 # Instala o Grype
-                curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+                curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                 # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
                 grype sbom.json -o sarif > reports/grype-report.sarif
                 echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
@@ -92,7 +92,7 @@ pipeline {
                     mkdir -p reports
                     # Instala o Snyk CLI (via npm, requer Node.js no agente)
                     # Se Node.js não estiver disponível, você pode baixar o binário diretamente:
-                    # curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk && chmod +x /usr/local/bin/snyk
+                    # curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk && chmod +x "${WORKSPACE}/tools_bin"
                     npm install -g snyk
                 '''
                 // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
