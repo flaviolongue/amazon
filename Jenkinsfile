@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         GIT_CREDENTIALS_ID = 'github-token'
-        DEFECTDOJO_URL = 'http://defectdojo-django.pf.svc.cluster.local'
+        DEFECTDOJO_URL = 'https://defectdojo.dev4cloud.online'
         // ATENÇÃO: NUNCA COLOQUE TOKENS DIRETAMENTE AQUI.
         // Use Jenkins Credentials. Crie uma credencial 'Secret text' com o ID 'DEFECTDOJO_API_KEY'
         DEFECTDOJO_API_KEY = 'b496d5dd233e7de0fb3f27721d9a76160cfdf7a4' // credentials('DEFECTDOJO_API_KEY')
