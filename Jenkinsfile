@@ -17,27 +17,7 @@ pipeline {
 
   stages {
 
-    stage('Build do Projeto Java') {
-        steps {
-            script {
-                // Este passo é importante para garantir que as dependências estejam resolvidas
-                // e os arquivos de build estejam prontos para as ferramentas SCA.
-                // Adapte conforme o seu projeto (Maven ou Gradle)
-                if (fileExists('pom.xml')) {
-                    echo 'Detectado projeto Maven. Executando build...'
-                    sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
-                } else if (fileExists('build.gradle')) {
-                    echo 'Detectado projeto Gradle. Executando build...'
-                    sh 'gradle build -x test' // -x test para agilizar a análise de segurança
-                } else {
-                    echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
-                    // Se o projeto não for Java ou não precisar de build, você pode remover ou comentar este bloco.
-                }
-            }
-        }
-    }
-
-    stage('OWASP Dependency Check') {
+     stage('OWASP Dependency Check') {
       steps {
         sh '''
           echo "Iniciando OWASP Dependency Check..."
