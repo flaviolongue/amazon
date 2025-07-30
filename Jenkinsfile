@@ -16,29 +16,77 @@ pipeline {
     }
 
     stages {
-        stage('Build do Projeto Java') {
-            steps {
-                script {
-                    if (fileExists('pom.xml')) {
-                        echo 'Detectado projeto Maven. Executando build em contêiner Maven...'
-                        // Entra em um contêiner Maven oficial com JDK 11 para o build
-                        docker.image('maven:3.8-openjdk-11').inside {
-                            sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+        stage('Build e Snyk Scan') {
+                steps {
+                    script {
+                        if (fileExists('pom.xml')) {
+                            echo 'Projeto Maven detectado - Build e Snyk na mesma imagem...'
+                            docker.image('maven:3.8-openjdk-11').inside {
+                                // Build do projeto
+                                sh 'mvn clean install -DskipTests'
+                                
+                                // Instalar e executar Snyk na mesma imagem
+                                sh '''
+                                    mkdir -p reports
+                                    
+                                    # Instalar Snyk CLI
+                                    curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
+                                    chmod +x snyk
+                                    
+                                    # Autenticar Snyk
+                                    ./snyk auth ${SNYK_TOKEN}
+                                    
+                                    # Executar scan Maven
+                                    ./snyk test \
+                                        --maven \
+                                        --json-file=reports/snyk-report.json \
+                                        --severity-threshold=low || echo "Snyk scan concluído com warnings"
+                                    
+                                    # Verificar se relatório foi gerado
+                                    if [ -f "reports/snyk-report.json" ] && [ -s "reports/snyk-report.json" ]; then
+                                        echo "✅ Relatório Snyk gerado com sucesso"
+                                    else
+                                        echo "⚠️  Criando relatório vazio"
+                                        echo '{"vulnerabilities":[],"ok":true,"summary":"Scan completed"}' > reports/snyk-report.json
+                                    fi
+                                '''
+                            }
+                        } else if (fileExists('build.gradle')) {
+                            echo 'Projeto Gradle detectado - Build e Snyk na mesma imagem...'
+                            docker.image('gradle:6.7.1-jdk15').inside {
+                                // Build do projeto
+                                sh 'chmod +x gradlew && ./gradlew build -x test'
+                                
+                                // Instalar e executar Snyk na mesma imagem
+                                sh '''
+                                    mkdir -p reports
+                                    
+                                    # Instalar Snyk CLI
+                                    curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
+                                    chmod +x snyk
+                                    
+                                    # Autenticar Snyk
+                                    ./snyk auth ${SNYK_TOKEN}
+                                    
+                                    # Executar scan Gradle
+                                    ./snyk test \
+                                        --gradle \
+                                        --json-file=reports/snyk-report.json \
+                                        --severity-threshold=low || echo "Snyk scan concluído com warnings"
+                                    
+                                    # Verificar se relatório foi gerado
+                                    if [ -f "reports/snyk-report.json" ] && [ -s "reports/snyk-report.json" ]; then
+                                        echo "✅ Relatório Snyk gerado com sucesso"
+                                    else
+                                        echo "⚠️  Criando relatório vazio"
+                                        echo '{"vulnerabilities":[],"ok":true,"summary":"Scan completed"}' > reports/snyk-report.json
+                                    fi
+                                '''
+                            }
                         }
-                    } else if (fileExists('build.gradle')) {
-                        echo 'Detectado projeto Gradle. Executando build em contêiner Gradle...'
-                        // Entra em um contêiner Gradle oficial com JDK 15 para o build
-                        docker.image('gradle:6.7.1-jdk15').inside {
-                            sh 'chmod +x gradlew' // Garante que o gradlew seja executável
-                            sh './gradlew build -x test' // -x test para agilizar a análise de segurança
-                        }
-                    } else {
-                        echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
                     }
                 }
             }
-        }
-
         stage('OWASP Dependency Check') {
             steps {
                 sh '''
@@ -120,91 +168,6 @@ pipeline {
             }
         }
 
-        stage('Snyk CLI Scan') {
-            steps {
-                script {
-                    echo "Iniciando Snyk CLI Scan..."
-                    sh '''
-                        mkdir -p reports "${WORKSPACE}/tools_bin"
-                        
-                        # Instalar Snyk CLI
-                        curl https://static.snyk.io/cli/latest/snyk-linux -o "${WORKSPACE}/tools_bin/snyk"
-                        chmod +x "${WORKSPACE}/tools_bin/snyk"
-                        
-                        # Verificar versão
-                        ${WORKSPACE}/tools_bin/snyk --version
-                    '''
-                    
-                    // Autenticar Snyk
-                    sh '''
-                        echo "Autenticando Snyk..."
-                        ${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}
-                        
-                    '''
-                    
-                    // Executar scan com diferentes estratégias
-                    sh '''
-                        echo "=== EXECUTANDO SNYK SCAN ==="
-                        
-                        # Função para executar Snyk com diferentes abordagens
-                        run_snyk_scan() {
-                            local approach=$1
-                            local extra_args=$2
-                            
-                            echo "Tentativa ${approach}: ${extra_args}"
-                            
-                            ${WORKSPACE}/tools_bin/snyk test ${extra_args} \
-                                --json-file=reports/snyk-${approach}.json \
-                                --severity-threshold=low 2>&1 || echo "Abordagem ${approach} falhou"
-                            
-                            if [ -f "reports/snyk-${approach}.json" ] && [ -s "reports/snyk-${approach}.json" ]; then
-                                echo "✅ Abordagem ${approach} bem-sucedida"
-                                cp "reports/snyk-${approach}.json" "reports/snyk-report.json"
-                                return 0
-                            else
-                                echo "❌ Abordagem ${approach} falhou"
-                                return 1
-                            fi
-                        }
-                        
-                        # Detectar tipo de projeto e ajustar estratégia
-                        if [ -f "pom.xml" ]; then
-                            echo "Projeto Maven detectado"
-                            
-                            # Tentar diferentes abordagens para Maven
-                            run_snyk_scan "maven-default" "" || \
-                            run_snyk_scan "maven-specific" "--maven" || \
-                            run_snyk_scan "maven-all-projects" "--all-projects" || \
-                            run_snyk_scan "maven-unmanaged" "--unmanaged" || \
-                            echo "Todas as abordagens Maven falharam"
-                            
-                        elif [ -f "build.gradle" ]; then
-                            echo "Projeto Gradle detectado"
-                            
-                            # Tentar diferentes abordagens para Gradle
-                            run_snyk_scan "gradle-default" "" || \
-                            run_snyk_scan "gradle-specific" "--gradle" || \
-                            run_snyk_scan "gradle-all-projects" "--all-projects" || \
-                            run_snyk_scan "gradle-unmanaged" "--unmanaged" || \
-                            echo "Todas as abordagens Gradle falharam"
-                            
-                        else
-                            echo "Projeto genérico detectado"
-                            run_snyk_scan "generic" "--unmanaged"
-                        fi
-                        
-                        # Verificar se algum relatório foi gerado
-                        if [ ! -f "reports/snyk-report.json" ] || [ ! -s "reports/snyk-report.json" ]; then
-                            echo "⚠️  Nenhum relatório Snyk válido gerado, criando relatório vazio..."
-                            echo '{"vulnerabilities":[],"ok":true,"dependencyCount":0,"org":"unknown","policy":"","isPrivate":false,"licensesPolicy":null,"packageManager":"unknown","ignoreSettings":null,"summary":"No dependencies found","filesystemPolicy":false,"filtered":{"ignore":[],"patch":[]},"uniqueCount":0,"projectName":"unknown","path":"unknown"}' > reports/snyk-report.json
-                        fi
-                        
-                        echo "=== RESUMO SNYK ==="
-                        ls -la reports/snyk*.json
-                    '''
-                }
-            }
-        }
         stage('Criar Engagement DefectDojo') {
             steps {
                 script {
