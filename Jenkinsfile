@@ -164,7 +164,7 @@ pipeline {
           echo "Enviando relatório OWASP Dependency-Check para DefectDojo..."
           curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
             -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "engagement=$ENGAGEMENT_ID" \
             -F "scan_type=Dependency Check Scan" \
             -F "minimum_severity=Low" \
             -F "active=true" \
@@ -182,7 +182,7 @@ pipeline {
           echo "Enviando relatório Trivy para DefectDojo..."
           curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
             -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "engagement=$ENGAGEMENT_ID" \
             -F "scan_type=Trivy Scan" \
             -F "minimum_severity=Low" \
             -F "active=true" \
@@ -200,7 +200,7 @@ pipeline {
           echo "Enviando SBOM (Syft) para DefectDojo..."
           curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
             -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "engagement=$ENGAGEMENT_ID" \
             -F "scan_type=CycloneDX Scan" \
             -F "minimum_severity=Low" \
             -F "active=true" \
@@ -218,7 +218,7 @@ pipeline {
           echo "Enviando relatório Grype para DefectDojo..."
           curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
             -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "engagement=$ENGAGEMENT_ID" \
             -F "scan_type=SARIF" \
             -F "minimum_severity=Low" \
             -F "active=true" \
@@ -236,7 +236,7 @@ pipeline {
           echo "Enviando relatório Snyk para DefectDojo..."
           curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
             -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=${ENGAGEMENT_ID}" \
+            -F "engagement=$ENGAGEMENT_ID" \
             -F "scan_type=Snyk Scan" \
             -F "minimum_severity=Low" \
             -F "active=true" \
