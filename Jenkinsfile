@@ -59,23 +59,46 @@ pipeline {
       }
     }
 
-    stage('Trivy Dependencies') {
-      steps {
+   stage('Trivy Dependencies') {
+    steps {
         sh '''
-          echo "Iniciando Trivy Dependencies Scan..."
-          mkdir -p reports
-          # Instala o Trivy
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -
-          # Executa o scan de dependências
-          ./bin/trivy fs . \
-            --scanners vuln \
-            --vuln-type library \
-            --format json \
-            --output reports/trivy-deps.json
-          echo "Trivy Dependencies Scan concluído."
+            echo "Iniciando Trivy Dependencies Scan..."
+            mkdir -p reports
+            
+            # Instalar Trivy
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -
+            
+            # Verificar se a instalação foi bem-sucedida
+            if [ ! -f "./trivy" ]; then
+                echo "Erro: Trivy não foi instalado corretamente"
+                exit 1
+            fi
+            
+            # Dar permissão de execução
+            chmod +x ./trivy
+            
+            # Executar scan com tratamento de erro
+            ./trivy fs . \
+                --scanners vuln \
+                --vuln-type library \
+                --format json \
+                --output reports/trivy-deps.json \
+                --exit-code 0 \
+                --quiet
+            
+            # Gerar também relatório em formato table para visualização
+            ./trivy fs . \
+                --scanners vuln \
+                --vuln-type library \
+                --format table \
+                --output reports/trivy-deps.txt \
+                --exit-code 0 \
+                --quiet
+            
+            echo "Trivy Dependencies Scan concluído."
         '''
-      }
     }
+}
 
     stage('Gerar SBOM com Syft') {
         steps {
