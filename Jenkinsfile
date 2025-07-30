@@ -22,7 +22,7 @@ pipeline {
                 if (fileExists('pom.xml')) {
                     echo 'Detectado projeto Maven. Executando build em contêiner Maven...'
                     // Entra em um contêiner Maven oficial com JDK 21 para o build
-                    docker.image('maven:3.9.6-openjdk-21').inside {
+                    docker.image('maven:3.8-openjdk-11').inside {
                         sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
                     }
                 } else if (fileExists('build.gradle')) {
