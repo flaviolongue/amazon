@@ -12,7 +12,7 @@ pipeline {
     DEFECTDOJO_PRODUCT_ID = '2' // Exemplo: '2' para o seu produto 'amazon-poc'
 
     // Para Snyk CLI: Crie uma credencial 'Secret text' com o ID 'SNYK_TOKEN'
-    SNYK_TOKEN = credentials('SNYK_TOKEN')
+    SNYK_TOKEN = '09a9b8a3-41b7-400a-b47a-2e7c6b3c8707'
   }
 
   stages {
