@@ -60,48 +60,6 @@ pipeline {
             }
         }
 
-        stage('Trivy Dependencies') {
-            steps {
-                sh '''
-                    echo "Iniciando Trivy Dependencies Scan..."
-                    mkdir -p reports
-                    mkdir -p "${WORKSPACE}/tools_bin"
-                    
-                    # Instalar Trivy
-                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
-                    
-                    # Verificar se a instalação foi bem-sucedida
-                    if [ ! -f "${WORKSPACE}/tools_bin/trivy" ]; then
-                        echo "Erro: Trivy não foi instalado corretamente"
-                        exit 1
-                    fi
-                    
-                    # Dar permissão de execução
-                    chmod +x ${WORKSPACE}/tools_bin/trivy
-                    
-                    # Executar scan com tratamento de erro
-                    ${WORKSPACE}/tools_bin/trivy fs . \
-                        --scanners vuln \
-                        --vuln-type library \
-                        --format json \
-                        --output reports/trivy-deps.json \
-                        --exit-code 0 \
-                        --quiet
-                    
-                    # Gerar também relatório em formato table para visualização
-                    ${WORKSPACE}/tools_bin/trivy fs . \
-                        --scanners vuln \
-                        --vuln-type library \
-                        --format table \
-                        --output reports/trivy-deps.txt \
-                        --exit-code 0 \
-                        --quiet
-                    
-                    echo "Trivy Dependencies Scan concluído."
-                '''
-            }
-        }
-
         stage('Gerar SBOM com Syft') {
             steps {
                 sh '''
@@ -128,6 +86,34 @@ pipeline {
                     # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
                     ${WORKSPACE}/tools_bin/grype "sbom:reports/sbom.json" -o sarif > reports/grype-report.sarif
                     echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
+                '''
+            }
+        }
+        stage('Trivy SBOM Scan') {
+            steps {
+                sh '''
+                    echo "Escaneando SBOM com Trivy..."
+                    mkdir -p reports
+                    mkdir -p "${WORKSPACE}/tools_bin"
+                        
+                    # Instalar Trivy
+                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
+                    
+                    # ✅ Trivy escaneando o SBOM gerado pelo Syft
+                    ${WORKSPACE}/tools_bin/trivy sbom reports/sbom.json \
+                        --format json \
+                        --output reports/trivy-deps.json \
+                        --exit-code 0 \
+                        --quiet
+                    
+                    # Gerar relatório em formato table para visualização
+                    ${WORKSPACE}/tools_bin/trivy sbom reports/sbom.json \
+                        --format table \
+                        --output reports/trivy-deps.txt \
+                        --exit-code 0 \
+                        --quiet
+                    
+                    echo "Trivy SBOM Scan concluído!"
                 '''
             }
         }
