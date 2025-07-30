@@ -64,7 +64,7 @@ pipeline {
                 # Instala o Syft
                 curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                 # Gera SBOM no formato CycloneDX JSON
-                syft . -o cyclonedx-json > reports/sbom.json
+                ${WORKSPACE}/tools_bin/syft . -o cyclonedx-json > reports/sbom.json
                 echo 'SBOM gerado com sucesso: reports/sbom.json'
             '''
         }
@@ -78,7 +78,7 @@ pipeline {
                 # Instala o Grype
                 curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                 # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
-                grype sbom.json -o sarif > reports/grype-report.sarif
+                ${WORKSPACE}/tools_bin/grype sbom.json -o sarif > reports/grype-report.sarif
                 echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
             '''
         }
@@ -96,10 +96,10 @@ pipeline {
                     npm install -g snyk
                 '''
                 // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
-                sh "snyk auth ${SNYK_TOKEN}"
+                sh "${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}"
                 // Executa o scan de dependências do Snyk
                 // '|| true' para que a etapa não falhe imediatamente se vulnerabilidades forem encontradas
-                sh "snyk test --all-projects --json-file=reports/snyk-report.json || true"
+                sh "${WORKSPACE}/tools_bin/snyk test --all-projects --json-file=reports/snyk-report.json || true"
                 echo 'Relatório Snyk gerado: reports/snyk-report.json'
             }
         }
