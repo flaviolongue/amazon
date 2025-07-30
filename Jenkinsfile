@@ -91,9 +91,8 @@ pipeline {
                 sh """
                     mkdir -p reports
                     # Instala o Snyk CLI baixando o binário diretamente no TOOLS_BIN_DIR
-                    mkdir -p "${TOOLS_BIN_DIR}"
-                    curl https://static.snyk.io/cli/latest/snyk-linux -o "${TOOLS_BIN_DIR}/snyk"
-                    chmod +x "${TOOLS_BIN_DIR}/snyk"
+                    curl https://static.snyk.io/cli/latest/snyk-linux -o " ${WORKSPACE}/tools_bin/snyk"
+                    chmod +x "${WORKSPACE}/tools_bin/snyk"
                 """
                 // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
                 sh "${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}"
