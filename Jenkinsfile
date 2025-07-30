@@ -140,8 +140,6 @@ pipeline {
                         echo "Autenticando Snyk..."
                         ${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}
                         
-                        # Verificar autenticação
-                        ${WORKSPACE}/tools_bin/snyk whoami || echo "Falha na autenticação"
                     '''
                     
                     // Executar scan com diferentes estratégias
