@@ -294,20 +294,20 @@ pipeline {
                         'sca,owasp',
                         'Relatório gerado pelo OWASP Dependency-Check (POC SCA)'
                     )
-                    
+                    sleep(5) 
                     enviarRelatorio(
                         'reports/trivy-deps.json',
                         'Trivy Scan',
                         'sca,trivy',
                         'Relatório gerado pelo Trivy (POC SCA)'
                     )
-                    
-                    enviarRelatorio(
-                        'reports/sbom.json',
-                        'CycloneDX Scan',
-                        'sca,syft,sbom',
-                        'SBOM gerado pelo Syft (POC SCA)'
-                    )
+                    sleep(5) 
+                    // enviarRelatorio(
+                    //     'reports/sbom.json',
+                    //     'CycloneDX Scan',
+                    //     'sca,syft,sbom',
+                    //     'SBOM gerado pelo Syft (POC SCA)'
+                    // )
                     
                     enviarRelatorio(
                         'reports/grype-report.sarif',
@@ -315,7 +315,7 @@ pipeline {
                         'sca,grype',
                         'Relatório gerado pelo Grype (POC SCA)'
                     )
-                    
+                    sleep(5) 
                     enviarRelatorio(
                         'reports/snyk-report.json',
                         'Snyk Scan',
