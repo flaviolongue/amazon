@@ -1,291 +1,300 @@
 pipeline {
-  agent any // Ou um agente específico com label 'java-agent'
+    agent any // Ou um agente específico com label 'java-agent'
 
-  environment {
-    GIT_CREDENTIALS_ID = 'github-token'
-    DEFECTDOJO_URL = 'https://defectdojo.dev4cloud.online/'
-    // ATENÇÃO: NUNCA COLOQUE TOKENS DIRETAMENTE AQUI.
-    // Use Jenkins Credentials. Crie uma credencial 'Secret text' com o ID 'DEFECTDOJO_API_KEY'
-    DEFECTDOJO_API_KEY = 'b496d5dd233e7de0fb3f27721d9a76160cfdf7a4' // credentials('DEFECTDOJO_API_KEY')
-    // ID do produto no DefectDojo onde os resultados serão enviados
-    // Substitua '2' pelo ID real do seu produto no DefectDojo
-    DEFECTDOJO_PRODUCT_ID = '2' // Exemplo: '2' para o seu produto 'amazon-poc'
+    environment {
+        GIT_CREDENTIALS_ID = 'github-token'
+        DEFECTDOJO_URL = 'https://defectdojo.dev4cloud.online/'
+        // ATENÇÃO: NUNCA COLOQUE TOKENS DIRETAMENTE AQUI.
+        // Use Jenkins Credentials. Crie uma credencial 'Secret text' com o ID 'DEFECTDOJO_API_KEY'
+        DEFECTDOJO_API_KEY = 'b496d5dd233e7de0fb3f27721d9a76160cfdf7a4' // credentials('DEFECTDOJO_API_KEY')
+        // ID do produto no DefectDojo onde os resultados serão enviados
+        // Substitua '2' pelo ID real do seu produto no DefectDojo
+        DEFECTDOJO_PRODUCT_ID = '2' // Exemplo: '2' para o seu produto 'amazon-poc'
 
-    // Para Snyk CLI: Crie uma credencial 'Secret text' com o ID 'SNYK_TOKEN'
-    SNYK_TOKEN = '09a9b8a3-41b7-400a-b47a-2e7c6b3c8707'
-  }
+        // Para Snyk CLI: Crie uma credencial 'Secret text' com o ID 'SNYK_TOKEN'
+        SNYK_TOKEN = '09a9b8a3-41b7-400a-b47a-2e7c6b3c8707'
+    }
 
-  stages {
-      stage('Build do Projeto Java') {
-        steps {
-            script {
-                if (fileExists('pom.xml')) {
-                    echo 'Detectado projeto Maven. Executando build em contêiner Maven...'
-                    // Entra em um contêiner Maven oficial com JDK 21 para o build
-                    docker.image('maven:3.8-openjdk-11').inside {
-                        sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+    stages {
+        stage('Build do Projeto Java') {
+            steps {
+                script {
+                    if (fileExists('pom.xml')) {
+                        echo 'Detectado projeto Maven. Executando build em contêiner Maven...'
+                        // Entra em um contêiner Maven oficial com JDK 11 para o build
+                        docker.image('maven:3.8-openjdk-11').inside {
+                            sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+                        }
+                    } else if (fileExists('build.gradle')) {
+                        echo 'Detectado projeto Gradle. Executando build em contêiner Gradle...'
+                        // Entra em um contêiner Gradle oficial com JDK 15 para o build
+                        docker.image('gradle:6.7.1-jdk15').inside {
+                            sh 'chmod +x gradlew' // Garante que o gradlew seja executável
+                            sh './gradlew build -x test' // -x test para agilizar a análise de segurança
+                        }
+                    } else {
+                        echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
                     }
-                } else if (fileExists('build.gradle')) {
-                    echo 'Detectado projeto Gradle. Executando build em contêiner Gradle...'
-                    // Entra em um contêiner Gradle oficial com JDK 21 para o build
-                    docker.image('gradle:6.7.1-jdk15').inside {
-                        sh 'chmod +x gradlew' // Garante que o gradlew seja executável
-                        sh './gradlew build -x test' // -x test para agilizar a análise de segurança
-                    }
-                } else {
-                    echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
                 }
             }
         }
-    }
-     stage('OWASP Dependency Check') {
-      steps {
-        sh '''
-          echo "Iniciando OWASP Dependency Check..."
-          mkdir -p reports
-          # Baixa e descompacta o Dependency-Check
-          curl -L -o dc.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
-          unzip -o dc.zip -d dc
-          chmod +x dc/dependency-check/bin/dependency-check.sh
-          # Executa o scan
-          ./dc/dependency-check/bin/dependency-check.sh \
-            --project amazon-poc \
-            --scan . \
-            --format XML \
-            --out reports \
-            --disableAssembly # Desabilita análise de assemblies .NET se não for relevante
-          echo "OWASP Dependency Check concluído."
-        '''
-      }
-    }
 
-   stage('Trivy Dependencies') {
-    steps {
-        sh '''
-            echo "Iniciando Trivy Dependencies Scan..."
-            mkdir -p reports
-            
-            # Instalar Trivy
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
-            
-            # Verificar se a instalação foi bem-sucedida
-            if [ ! -f "${WORKSPACE}/tools_bin/trivy" ]; then
-                echo "Erro: Trivy não foi instalado corretamente"
-                exit 1
-            fi
-            
-            # Dar permissão de execução
-            chmod +x ${WORKSPACE}/tools_bin/trivy
-            
-            # Executar scan com tratamento de erro
-            ${WORKSPACE}/tools_bin/trivy fs . \
-                --scanners vuln \
-                --vuln-type library \
-                --format json \
-                --output reports/trivy-deps.json \
-                --exit-code 0 \
-                --quiet
-            
-            # Gerar também relatório em formato table para visualização
-            ${WORKSPACE}/tools_bin/trivy fs . \
-                --scanners vuln \
-                --vuln-type library \
-                --format table \
-                --output reports/trivy-deps.txt \
-                --exit-code 0 \
-                --quiet
-            
-            echo "Trivy Dependencies Scan concluído."
-        '''
-    }
-}
-
-    stage('Gerar SBOM com Syft') {
-        steps {
-            sh '''
-                echo "Iniciando geração de SBOM com Syft..."
-                mkdir -p reports
-                # Instala o Syft
-                curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
-                # Gera SBOM no formato CycloneDX JSON
-                ${WORKSPACE}/tools_bin/syft . -o cyclonedx-json > reports/sbom.json
-                echo 'SBOM gerado com sucesso: reports/sbom.json'
-            '''
-        }
-    }
-
-    stage('Escanear SBOM com Grype') {
-        steps {
-            sh '''
-                echo "Iniciando scan de SBOM com Grype..."
-                mkdir -p reports
-                # Instala o Grype
-                curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
-                # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
-                ${WORKSPACE}/tools_bin/grype  "sbom:reports/sbom.json"  -o sarif > reports/grype-report.sarif
-                echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
-            '''
-        }
-    }
-
-    stage('Snyk CLI Scan') {
-        steps {
-            script {
-                echo "Iniciando Snyk CLI Scan..."
-                sh """
+        stage('OWASP Dependency Check') {
+            steps {
+                sh '''
+                    echo "Iniciando OWASP Dependency Check..."
                     mkdir -p reports
-                    # Instala o Snyk CLI baixando o binário diretamente no TOOLS_BIN_DIR
-                    curl https://static.snyk.io/cli/latest/snyk-linux -o "${WORKSPACE}/tools_bin/snyk"
-                    chmod +x "${WORKSPACE}/tools_bin/snyk"
-                """
-                // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
-                sh "${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}"
-                // Executa o scan de dependências do Snyk
-                // '|| true' para que a etapa não falhe imediatamente se vulnerabilidades forem encontradas
-                sh "${WORKSPACE}/tools_bin/snyk test --all-projects --json-file=reports/snyk-report.json || true"
-                echo 'Relatório Snyk gerado: reports/snyk-report.json'
+                    # Baixa e descompacta o Dependency-Check
+                    curl -L -o dc.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
+                    unzip -o dc.zip -d dc
+                    chmod +x dc/dependency-check/bin/dependency-check.sh
+                    # Executa o scan
+                    ./dc/dependency-check/bin/dependency-check.sh \
+                        --project amazon-poc \
+                        --scan . \
+                        --format XML \
+                        --out reports \
+                        --disableAssembly # Desabilita análise de assemblies .NET se não for relevante
+                    echo "OWASP Dependency Check concluído."
+                '''
             }
         }
-    }
 
-    stage('Criar Engagement DefectDojo') {
-      steps {
-        script {
-          def today = sh(script: "date +%F", returnStdout: true).trim()
-          def response = sh(
-            script: """
-              curl -s -X POST ${DEFECTDOJO_URL}/api/v2/engagements/ \
-                -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-                -H "Content-Type: application/json" \
-                -d '{
-                      "name": "Build-${env.BUILD_NUMBER}",
-                      "product": ${DEFECTDOJO_PRODUCT_ID},
-                      "engagement_type": "CI/CD",
-                      "target_start": "${today}",
-                      "target_end": "${today}",
-                      "status": "In Progress",
-                      "active": true
-                    }'
-            """,
-            returnStdout: true
-          ).trim()
-
-          def engagementId = new groovy.json.JsonSlurperClassic().parseText(response).id
-          env.ENGAGEMENT_ID = "${engagementId}"
-          echo "Engagement DefectDojo criado com ID: ${env.ENGAGEMENT_ID}"
-        }
-      }
-    }
-
-    stage('Publicar Relatórios') {
-    steps {
-        script {
-            // Definir data uma única vez no escopo correto
-            def DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
-            
-            // Arquivar todos os relatórios gerados
-            archiveArtifacts artifacts: 'reports/*', fingerprint: true, allowEmptyArchive: true
-            
-            // Função para enviar relatórios com tratamento de erro
-            def enviarRelatorio = { arquivo, scanType, tags, descricao ->
-                sh """
-                    if [ -f "${arquivo}" ]; then
-                        echo "Enviando ${descricao} para DefectDojo..."
-                        
-                        RESPONSE=\$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-                            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-                            -F "engagement=\$ENGAGEMENT_ID" \
-                            -F "scan_type=${scanType}" \
-                            -F "minimum_severity=Low" \
-                            -F "active=true" \
-                            -F "verified=true" \
-                            -F "file=@${arquivo}" \
-                            -F "scan_date=${DATA_FINAL}" \
-                            -F "tags=${tags}" \
-                            -F "close_old_findings=false" \
-                            -F "description=${descricao}")
-                        
-                        HTTP_STATUS=\$(echo \$RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-                        RESPONSE_BODY=\$(echo \$RESPONSE | sed -e 's/HTTPSTATUS:.*//g')
-                        
-                        if [ \$HTTP_STATUS -eq 200 ] || [ \$HTTP_STATUS -eq 201 ]; then
-                            echo "✅ ${descricao} enviado com sucesso (HTTP \$HTTP_STATUS)"
-                        else
-                            echo "❌ Erro ao enviar ${descricao} (HTTP \$HTTP_STATUS)"
-                            echo "Response: \$RESPONSE_BODY"
-                        fi
-                    else
-                        echo "⚠️  Arquivo ${arquivo} não encontrado. Pulando envio de ${descricao}."
+        stage('Trivy Dependencies') {
+            steps {
+                sh '''
+                    echo "Iniciando Trivy Dependencies Scan..."
+                    mkdir -p reports
+                    mkdir -p "${WORKSPACE}/tools_bin"
+                    
+                    # Instalar Trivy
+                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
+                    
+                    # Verificar se a instalação foi bem-sucedida
+                    if [ ! -f "${WORKSPACE}/tools_bin/trivy" ]; then
+                        echo "Erro: Trivy não foi instalado corretamente"
+                        exit 1
                     fi
-                """
+                    
+                    # Dar permissão de execução
+                    chmod +x ${WORKSPACE}/tools_bin/trivy
+                    
+                    # Executar scan com tratamento de erro
+                    ${WORKSPACE}/tools_bin/trivy fs . \
+                        --scanners vuln \
+                        --vuln-type library \
+                        --format json \
+                        --output reports/trivy-deps.json \
+                        --exit-code 0 \
+                        --quiet
+                    
+                    # Gerar também relatório em formato table para visualização
+                    ${WORKSPACE}/tools_bin/trivy fs . \
+                        --scanners vuln \
+                        --vuln-type library \
+                        --format table \
+                        --output reports/trivy-deps.txt \
+                        --exit-code 0 \
+                        --quiet
+                    
+                    echo "Trivy Dependencies Scan concluído."
+                '''
             }
-            
-            // Enviar cada relatório
-            enviarRelatorio(
-                'reports/dependency-check-report.xml',
-                'Dependency Check Scan',
-                'sca,owasp',
-                'Relatório gerado pelo OWASP Dependency-Check (POC SCA)'
-            )
-            
-            enviarRelatorio(
-                'reports/trivy-deps.json',
-                'Trivy Scan',
-                'sca,trivy',
-                'Relatório gerado pelo Trivy (POC SCA)'
-            )
-            
-            enviarRelatorio(
-                'reports/sbom.json',
-                'CycloneDX Scan',
-                'sca,syft,sbom',
-                'SBOM gerado pelo Syft (POC SCA)'
-            )
-            
-            enviarRelatorio(
-                'reports/grype-report.sarif',
-                'SARIF',
-                'sca,grype',
-                'Relatório gerado pelo Grype (POC SCA)'
-            )
-            
-            enviarRelatorio(
-                'reports/snyk-report.json',
-                'Snyk Scan',
-                'sca,snyk',
-                'Relatório gerado pelo Snyk CLI (POC SCA)'
-            )
         }
-        
-        // Publicar relatórios HTML no Jenkins
-        publishHTML([
-            allowMissing: true,
-            alwaysLinkToLastBuild: true,
-            keepAll: true,
-            reportDir: 'reports',
-            reportFiles: '*.html,*.xml,*.json,*.txt,*.sarif',
-            reportName: 'Security Reports',
-            reportTitles: 'Relatórios de Segurança - SCA Pipeline'
-        ])
-        
-        // Resumo final
-        sh '''
-            echo "=== RESUMO DOS RELATÓRIOS GERADOS ==="
-            ls -la reports/ || echo "Diretório reports não encontrado"
-            echo "=== FIM DO RESUMO ==="
-        '''
-    }
-}
 
-  post {
-      always {
-          echo 'Pipeline de SCA concluída.'
-          // Limpar arquivos gerados, se necessário
-         // sh 'rm -rf reports dc bin snyk-report.json sbom.json grype-report.sarif'
-      }
-      failure {
-          echo 'Pipeline de SCA falhou!'
-          // Adicione aqui lógica para notificação de falha
-      }
-  }
+        stage('Gerar SBOM com Syft') {
+            steps {
+                sh '''
+                    echo "Iniciando geração de SBOM com Syft..."
+                    mkdir -p reports
+                    mkdir -p "${WORKSPACE}/tools_bin"
+                    # Instala o Syft
+                    curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
+                    # Gera SBOM no formato CycloneDX JSON
+                    ${WORKSPACE}/tools_bin/syft . -o cyclonedx-json > reports/sbom.json
+                    echo 'SBOM gerado com sucesso: reports/sbom.json'
+                '''
+            }
+        }
+
+        stage('Escanear SBOM com Grype') {
+            steps {
+                sh '''
+                    echo "Iniciando scan de SBOM com Grype..."
+                    mkdir -p reports
+                    mkdir -p "${WORKSPACE}/tools_bin"
+                    # Instala o Grype
+                    curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
+                    # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
+                    ${WORKSPACE}/tools_bin/grype "sbom:reports/sbom.json" -o sarif > reports/grype-report.sarif
+                    echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
+                '''
+            }
+        }
+
+        stage('Snyk CLI Scan') {
+            steps {
+                script {
+                    echo "Iniciando Snyk CLI Scan..."
+                    sh """
+                        mkdir -p reports
+                        mkdir -p "${WORKSPACE}/tools_bin"
+                        # Instala o Snyk CLI baixando o binário diretamente no TOOLS_BIN_DIR
+                        curl https://static.snyk.io/cli/latest/snyk-linux -o "${WORKSPACE}/tools_bin/snyk"
+                        chmod +x "${WORKSPACE}/tools_bin/snyk"
+                    """
+                    // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
+                    sh "${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}"
+                    // Executa o scan de dependências do Snyk
+                    // '|| true' para que a etapa não falhe imediatamente se vulnerabilidades forem encontradas
+                    sh "${WORKSPACE}/tools_bin/snyk test --all-projects --json-file=reports/snyk-report.json || true"
+                    echo 'Relatório Snyk gerado: reports/snyk-report.json'
+                }
+            }
+        }
+
+        stage('Criar Engagement DefectDojo') {
+            steps {
+                script {
+                    def today = sh(script: "date +%F", returnStdout: true).trim()
+                    def response = sh(
+                        script: """
+                            curl -s -X POST ${DEFECTDOJO_URL}/api/v2/engagements/ \
+                                -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+                                -H "Content-Type: application/json" \
+                                -d '{
+                                    "name": "Build-${env.BUILD_NUMBER}",
+                                    "product": ${DEFECTDOJO_PRODUCT_ID},
+                                    "engagement_type": "CI/CD",
+                                    "target_start": "${today}",
+                                    "target_end": "${today}",
+                                    "status": "In Progress",
+                                    "active": true
+                                }'
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    def engagementId = new groovy.json.JsonSlurperClassic().parseText(response).id
+                    env.ENGAGEMENT_ID = "${engagementId}"
+                    echo "Engagement DefectDojo criado com ID: ${env.ENGAGEMENT_ID}"
+                }
+            }
+        }
+
+        stage('Publicar Relatórios') {
+            steps {
+                script {
+                    // Definir data uma única vez no escopo correto
+                    def DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
+                    
+                    // Arquivar todos os relatórios gerados
+                    archiveArtifacts artifacts: 'reports/*', fingerprint: true, allowEmptyArchive: true
+                    
+                    // Função para enviar relatórios com tratamento de erro
+                    def enviarRelatorio = { arquivo, scanType, tags, descricao ->
+                        sh """
+                            if [ -f "${arquivo}" ]; then
+                                echo "Enviando ${descricao} para DefectDojo..."
+                                
+                                RESPONSE=\$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+                                    -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+                                    -F "engagement=\$ENGAGEMENT_ID" \
+                                    -F "scan_type=${scanType}" \
+                                    -F "minimum_severity=Low" \
+                                    -F "active=true" \
+                                    -F "verified=true" \
+                                    -F "file=@${arquivo}" \
+                                    -F "scan_date=${DATA_FINAL}" \
+                                    -F "tags=${tags}" \
+                                    -F "close_old_findings=false" \
+                                    -F "description=${descricao}")
+                                
+                                HTTP_STATUS=\$(echo \$RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+                                RESPONSE_BODY=\$(echo \$RESPONSE | sed -e 's/HTTPSTATUS:.*//g')
+                                
+                                if [ \$HTTP_STATUS -eq 200 ] || [ \$HTTP_STATUS -eq 201 ]; then
+                                    echo "✅ ${descricao} enviado com sucesso (HTTP \$HTTP_STATUS)"
+                                else
+                                    echo "❌ Erro ao enviar ${descricao} (HTTP \$HTTP_STATUS)"
+                                    echo "Response: \$RESPONSE_BODY"
+                                fi
+                            else
+                                echo "⚠️  Arquivo ${arquivo} não encontrado. Pulando envio de ${descricao}."
+                            fi
+                        """
+                    }
+                    
+                    // Enviar cada relatório
+                    enviarRelatorio(
+                        'reports/dependency-check-report.xml',
+                        'Dependency Check Scan',
+                        'sca,owasp',
+                        'Relatório gerado pelo OWASP Dependency-Check (POC SCA)'
+                    )
+                    
+                    enviarRelatorio(
+                        'reports/trivy-deps.json',
+                        'Trivy Scan',
+                        'sca,trivy',
+                        'Relatório gerado pelo Trivy (POC SCA)'
+                    )
+                    
+                    enviarRelatorio(
+                        'reports/sbom.json',
+                        'CycloneDX Scan',
+                        'sca,syft,sbom',
+                        'SBOM gerado pelo Syft (POC SCA)'
+                    )
+                    
+                    enviarRelatorio(
+                        'reports/grype-report.sarif',
+                        'SARIF',
+                        'sca,grype',
+                        'Relatório gerado pelo Grype (POC SCA)'
+                    )
+                    
+                    enviarRelatorio(
+                        'reports/snyk-report.json',
+                        'Snyk Scan',
+                        'sca,snyk',
+                        'Relatório gerado pelo Snyk CLI (POC SCA)'
+                    )
+                }
+                
+                // Publicar relatórios HTML no Jenkins
+                publishHTML([
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'reports',
+                    reportFiles: '*.html,*.xml,*.json,*.txt,*.sarif',
+                    reportName: 'Security Reports',
+                    reportTitles: 'Relatórios de Segurança - SCA Pipeline'
+                ])
+                
+                // Resumo final
+                sh '''
+                    echo "=== RESUMO DOS RELATÓRIOS GERADOS ==="
+                    ls -la reports/ || echo "Diretório reports não encontrado"
+                    echo "=== FIM DO RESUMO ==="
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline de SCA concluída.'
+            // Limpar arquivos gerados, se necessário
+            // sh 'rm -rf reports dc bin snyk-report.json sbom.json grype-report.sarif'
+        }
+        failure {
+            echo 'Pipeline de SCA falhou!'
+            // Adicione aqui lógica para notificação de falha
+        }
+        success {
+            echo 'Pipeline de SCA executada com sucesso!'
+        }
+    }
 }
