@@ -251,30 +251,38 @@ pipeline {
                             if [ -f "${arquivo}" ]; then
                                 echo "Enviando ${descricao} para DefectDojo..."
                                 
-                                RESPONSE=\$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-                                    -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-                                    -F "engagement=\$ENGAGEMENT_ID" \
-                                    -F "scan_type=${scanType}" \
-                                    -F "minimum_severity=Low" \
-                                    -F "active=true" \
-                                    -F "verified=true" \
-                                    -F "file=@${arquivo}" \
-                                    -F "scan_date=${DATA_FINAL}" \
-                                    -F "tags=${tags}" \
-                                    -F "close_old_findings=false" \
-                                    -F "description=${descricao}")
-                                
-                                HTTP_STATUS=\$(echo \$RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-                                RESPONSE_BODY=\$(echo \$RESPONSE | sed -e 's/HTTPSTATUS:.*//g')
-                                
-                                if [ \$HTTP_STATUS -eq 200 ] || [ \$HTTP_STATUS -eq 201 ]; then
-                                    echo "✅ ${descricao} enviado com sucesso (HTTP \$HTTP_STATUS)"
-                                else
-                                    echo "❌ Erro ao enviar ${descricao} (HTTP \$HTTP_STATUS)"
-                                    echo "Response: \$RESPONSE_BODY"
-                                fi
+                                # ✅ Retry com backoff para resolver 502
+                                for attempt in 1 2 3; do
+                                    echo "Tentativa \$attempt de 3..."
+                                    
+                                    RESPONSE=\$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+                                        -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+                                        -F "engagement=\$ENGAGEMENT_ID" \
+                                        -F "scan_type=${scanType}" \
+                                        -F "minimum_severity=Low" \
+                                        -F "active=true" \
+                                        -F "verified=true" \
+                                        -F "file=@${arquivo}" \
+                                        -F "scan_date=${DATA_FINAL}" \
+                                        -F "tags=${tags}" \
+                                        -F "close_old_findings=false" \
+                                        -F "description=${descricao}")
+                                    
+                                    HTTP_STATUS=\$(echo \$RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+                                    
+                                    if [ \$HTTP_STATUS -eq 200 ] || [ \$HTTP_STATUS -eq 201 ]; then
+                                        echo "✅ ${descricao} enviado com sucesso (HTTP \$HTTP_STATUS)"
+                                        break
+                                    elif [ \$HTTP_STATUS -eq 502 ]; then
+                                        echo "⚠️  HTTP 502 - Tentativa \$attempt falhou, aguardando..."
+                                        sleep \$((attempt * 5))  # Backoff: 5s, 10s, 15s
+                                    else
+                                        echo "❌ Erro ao enviar ${descricao} (HTTP \$HTTP_STATUS)"
+                                        break
+                                    fi
+                                done
                             else
-                                echo "⚠️  Arquivo ${arquivo} não encontrado. Pulando envio de ${descricao}."
+                                echo "⚠️  Arquivo ${arquivo} não encontrado."
                             fi
                         """
                     }
