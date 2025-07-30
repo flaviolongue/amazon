@@ -28,7 +28,7 @@ pipeline {
                 } else if (fileExists('build.gradle')) {
                     echo 'Detectado projeto Gradle. Executando build em contêiner Gradle...'
                     // Entra em um contêiner Gradle oficial com JDK 21 para o build
-                    docker.image('gradle:8.7-jdk21').inside {
+                    docker.image('gradle:6.7.1-jdk15').inside {
                         sh 'chmod +x gradlew' // Garante que o gradlew seja executável
                         sh './gradlew build -x test' // -x test para agilizar a análise de segurança
                     }
