@@ -70,6 +70,8 @@ pipeline {
                     curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                     # Gera SBOM no formato CycloneDX JSON
                     ${WORKSPACE}/tools_bin/syft . -o cyclonedx-json > reports/sbom.json
+                    # ✅ Gerar SBOM em formato SPDX (mais compatível com Trivy)
+                    ${WORKSPACE}/tools_bin/syft . -o spdx-json=reports/sbom-spdx.json
                     echo 'SBOM gerado com sucesso: reports/sbom.json'
                 '''
             }
@@ -100,14 +102,14 @@ pipeline {
                     curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                     
                     # ✅ Trivy escaneando o SBOM gerado pelo Syft
-                    ${WORKSPACE}/tools_bin/trivy sbom reports/sbom.json \
+                    ${WORKSPACE}/tools_bin/trivy sbom reports/sbom-spdx.json \
                         --format json \
                         --output reports/trivy-deps.json \
                         --exit-code 0 \
                         --quiet
                     
                     # Gerar relatório em formato table para visualização
-                    ${WORKSPACE}/tools_bin/trivy sbom reports/sbom.json \
+                    ${WORKSPACE}/tools_bin/trivy sbom reports/sbom-spdx.json \
                         --format table \
                         --output reports/trivy-deps.txt \
                         --exit-code 0 \
