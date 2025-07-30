@@ -88,13 +88,13 @@ pipeline {
         steps {
             script {
                 echo "Iniciando Snyk CLI Scan..."
-                sh '''
+                sh """
                     mkdir -p reports
-                    # Instala o Snyk CLI (via npm, requer Node.js no agente)
-                    # Se Node.js não estiver disponível, você pode baixar o binário diretamente:
-                    # curl https://static.snyk.io/cli/latest/snyk-linux -o /usr/local/bin/snyk && chmod +x "${WORKSPACE}/tools_bin"
-                    npm install -g snyk
-                '''
+                    # Instala o Snyk CLI baixando o binário diretamente no TOOLS_BIN_DIR
+                    mkdir -p "${TOOLS_BIN_DIR}"
+                    curl https://static.snyk.io/cli/latest/snyk-linux -o "${TOOLS_BIN_DIR}/snyk"
+                    chmod +x "${TOOLS_BIN_DIR}/snyk"
+                """
                 // Autentica o Snyk CLI usando o token de API do Jenkins Credentials
                 sh "${WORKSPACE}/tools_bin/snyk auth ${SNYK_TOKEN}"
                 // Executa o scan de dependências do Snyk
