@@ -66,19 +66,19 @@ pipeline {
             mkdir -p reports
             
             # Instalar Trivy
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
             
             # Verificar se a instalação foi bem-sucedida
-            if [ ! -f "./trivy" ]; then
+            if [ ! -f "${WORKSPACE}/tools_bin/trivy" ]; then
                 echo "Erro: Trivy não foi instalado corretamente"
                 exit 1
             fi
             
             # Dar permissão de execução
-            chmod +x ./trivy
+            chmod +x ${WORKSPACE}/tools_bin/trivy
             
             # Executar scan com tratamento de erro
-            ./trivy fs . \
+            ${WORKSPACE}/tools_bin/trivy fs . \
                 --scanners vuln \
                 --vuln-type library \
                 --format json \
@@ -87,7 +87,7 @@ pipeline {
                 --quiet
             
             # Gerar também relatório em formato table para visualização
-            ./trivy fs . \
+            ${WORKSPACE}/tools_bin/trivy fs . \
                 --scanners vuln \
                 --vuln-type library \
                 --format table \
