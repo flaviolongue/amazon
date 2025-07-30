@@ -16,7 +16,27 @@ pipeline {
   }
 
   stages {
-
+      stage('Build do Projeto Java') {
+        steps {
+            script {
+                // Este passo é importante para garantir que as dependências estejam resolvidas
+                // e os arquivos de build estejam prontos para as ferramentas SCA.
+                // Adapte conforme o seu projeto (Maven ou Gradle)
+                if (fileExists('pom.xml')) {
+                    echo 'Detectado projeto Maven. Executando build...'
+                    sh 'mvn clean install -DskipTests' // -DskipTests para agilizar a análise de segurança
+                } else if (fileExists('build.gradle')) {
+                    echo 'Detectado projeto Gradle. Executando build...'
+                    // Garante que o gradlew seja executável
+                    sh 'chmod +x gradlew'
+                    // Executa o build para resolver as dependências, mas pula os testes para agilizar
+                    sh './gradlew build -x test'
+                } else {
+                    echo 'Nenhum arquivo pom.xml ou build.gradle encontrado. Pulando build Java.'
+                }
+            }
+        }
+    }
      stage('OWASP Dependency Check') {
       steps {
         sh '''
