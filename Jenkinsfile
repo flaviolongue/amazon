@@ -158,7 +158,7 @@ pipeline {
       steps {
         // Arquiva todos os relatórios gerados para fácil acesso no Jenkins
         archiveArtifacts artifacts: 'reports/*', fingerprint: true
-        DEF DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
+        def DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
         // Enviar OWASP Dependency-Check
         sh """
           echo "Enviando relatório OWASP Dependency-Check para DefectDojo..."
