@@ -273,7 +273,7 @@ pipeline {
                     sleep(5) 
                     enviarRelatorio(
                         'reports/grype-report.sarif',
-                        'SARIF',
+                        'Anchore grype',
                         'sca,grype',
                         'Relatório gerado pelo Grype (POC SCA)'
                     )
