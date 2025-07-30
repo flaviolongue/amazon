@@ -158,7 +158,7 @@ pipeline {
       steps {
         // Arquiva todos os relatórios gerados para fácil acesso no Jenkins
         archiveArtifacts artifacts: 'reports/*', fingerprint: true
-
+        DEF DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
         // Enviar OWASP Dependency-Check
         sh """
           echo "Enviando relatório OWASP Dependency-Check para DefectDojo..."
@@ -170,7 +170,7 @@ pipeline {
             -F "active=true" \
             -F "verified=true" \
             -F "file=@reports/dependency-check-report.xml" \
-            -F "scan_date=$(date +%F)" \
+            -F "scan_date=$DATA_FINAL" \
             -F "tags=sca,owasp" \
             -F "close_old_findings=false" \
             -F "description=Relatório gerado pelo OWASP Dependency-Check (POC SCA)"
@@ -188,7 +188,7 @@ pipeline {
             -F "active=true" \
             -F "verified=true" \
             -F "file=@reports/trivy-deps.json" \
-            -F "scan_date=$(date +%F)" \
+            -F "scan_date=$DATA_FINAL" \
             -F "tags=sca,trivy" \
             -F "close_old_findings=false" \
             -F "description=Relatório gerado pelo Trivy (POC SCA)"
@@ -206,7 +206,7 @@ pipeline {
             -F "active=true" \
             -F "verified=true" \
             -F "file=@reports/sbom.json" \
-            -F "scan_date=$(date +%F)" \
+            -F "scan_date=$DATA_FINAL" \
             -F "tags=sca,syft,sbom" \
             -F "close_old_findings=false" \
             -F "description=SBOM gerado pelo Syft (POC SCA)"
@@ -224,7 +224,7 @@ pipeline {
             -F "active=true" \
             -F "verified=true" \
             -F "file=@reports/grype-report.sarif" \
-            -F "scan_date=$(date +%F)" \
+            -F "scan_date=$DATA_FINAL" \
             -F "tags=sca,grype" \
             -F "close_old_findings=false" \
             -F "description=Relatório gerado pelo Grype (POC SCA)"
@@ -242,7 +242,7 @@ pipeline {
             -F "active=true" \
             -F "verified=true" \
             -F "file=@reports/snyk-report.json" \
-            -F "scan_date=$(date +%F)" \
+            -F "scan_date=$DATA_FINAL" \
             -F "tags=sca,snyk" \
             -F "close_old_findings=false" \
             -F "description=Relatório gerado pelo Snyk CLI (POC SCA)"
