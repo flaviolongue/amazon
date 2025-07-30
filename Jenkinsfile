@@ -312,6 +312,7 @@ pipeline {
             echo 'Pipeline de SCA concluída.'
             // Limpar arquivos gerados, se necessário
             // sh 'rm -rf reports dc bin snyk-report.json sbom.json grype-report.sarif'
+            sh 'rm -rf reports'
         }
         failure {
             echo 'Pipeline de SCA falhou!'
