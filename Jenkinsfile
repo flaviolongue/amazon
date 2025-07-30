@@ -178,104 +178,104 @@ pipeline {
     }
 
     stage('Publicar Relatórios') {
-      steps {
-        // Arquiva todos os relatórios gerados para fácil acesso no Jenkins
-        archiveArtifacts artifacts: 'reports/*', fingerprint: true
-        script{
-          def DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
+    steps {
+        script {
+            // Definir data uma única vez no escopo correto
+            def DATA_FINAL = sh(script: "date +%F", returnStdout: true).trim()
+            
+            // Arquivar todos os relatórios gerados
+            archiveArtifacts artifacts: 'reports/*', fingerprint: true, allowEmptyArchive: true
+            
+            // Função para enviar relatórios com tratamento de erro
+            def enviarRelatorio = { arquivo, scanType, tags, descricao ->
+                sh """
+                    if [ -f "${arquivo}" ]; then
+                        echo "Enviando ${descricao} para DefectDojo..."
+                        
+                        RESPONSE=\$(curl -s -w "HTTPSTATUS:%{http_code}" -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
+                            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+                            -F "engagement=\$ENGAGEMENT_ID" \
+                            -F "scan_type=${scanType}" \
+                            -F "minimum_severity=Low" \
+                            -F "active=true" \
+                            -F "verified=true" \
+                            -F "file=@${arquivo}" \
+                            -F "scan_date=${DATA_FINAL}" \
+                            -F "tags=${tags}" \
+                            -F "close_old_findings=false" \
+                            -F "description=${descricao}")
+                        
+                        HTTP_STATUS=\$(echo \$RESPONSE | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+                        RESPONSE_BODY=\$(echo \$RESPONSE | sed -e 's/HTTPSTATUS:.*//g')
+                        
+                        if [ \$HTTP_STATUS -eq 200 ] || [ \$HTTP_STATUS -eq 201 ]; then
+                            echo "✅ ${descricao} enviado com sucesso (HTTP \$HTTP_STATUS)"
+                        else
+                            echo "❌ Erro ao enviar ${descricao} (HTTP \$HTTP_STATUS)"
+                            echo "Response: \$RESPONSE_BODY"
+                        fi
+                    else
+                        echo "⚠️  Arquivo ${arquivo} não encontrado. Pulando envio de ${descricao}."
+                    fi
+                """
+            }
+            
+            // Enviar cada relatório
+            enviarRelatorio(
+                'reports/dependency-check-report.xml',
+                'Dependency Check Scan',
+                'sca,owasp',
+                'Relatório gerado pelo OWASP Dependency-Check (POC SCA)'
+            )
+            
+            enviarRelatorio(
+                'reports/trivy-deps.json',
+                'Trivy Scan',
+                'sca,trivy',
+                'Relatório gerado pelo Trivy (POC SCA)'
+            )
+            
+            enviarRelatorio(
+                'reports/sbom.json',
+                'CycloneDX Scan',
+                'sca,syft,sbom',
+                'SBOM gerado pelo Syft (POC SCA)'
+            )
+            
+            enviarRelatorio(
+                'reports/grype-report.sarif',
+                'SARIF',
+                'sca,grype',
+                'Relatório gerado pelo Grype (POC SCA)'
+            )
+            
+            enviarRelatorio(
+                'reports/snyk-report.json',
+                'Snyk Scan',
+                'sca,snyk',
+                'Relatório gerado pelo Snyk CLI (POC SCA)'
+            )
         }
-        // Enviar OWASP Dependency-Check
-        sh """
-          echo "Enviando relatório OWASP Dependency-Check para DefectDojo..."
-          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=$ENGAGEMENT_ID" \
-            -F "scan_type=Dependency Check Scan" \
-            -F "minimum_severity=Low" \
-            -F "active=true" \
-            -F "verified=true" \
-            -F "file=@reports/dependency-check-report.xml" \
-            -F "scan_date=$DATA_FINAL" \
-            -F "tags=sca,owasp" \
-            -F "close_old_findings=false" \
-            -F "description=Relatório gerado pelo OWASP Dependency-Check (POC SCA)"
-          echo "Relatório OWASP Dependency-Check enviado."
-        """
-
-        // Enviar Trivy
-        sh """
-          echo "Enviando relatório Trivy para DefectDojo..."
-          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=$ENGAGEMENT_ID" \
-            -F "scan_type=Trivy Scan" \
-            -F "minimum_severity=Low" \
-            -F "active=true" \
-            -F "verified=true" \
-            -F "file=@reports/trivy-deps.json" \
-            -F "scan_date=$DATA_FINAL" \
-            -F "tags=sca,trivy" \
-            -F "close_old_findings=false" \
-            -F "description=Relatório gerado pelo Trivy (POC SCA)"
-          echo "Relatório Trivy enviado."
-        """
-
-        // Enviar SBOM (Syft)
-        sh """
-          echo "Enviando SBOM (Syft) para DefectDojo..."
-          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=$ENGAGEMENT_ID" \
-            -F "scan_type=CycloneDX Scan" \
-            -F "minimum_severity=Low" \
-            -F "active=true" \
-            -F "verified=true" \
-            -F "file=@reports/sbom.json" \
-            -F "scan_date=$DATA_FINAL" \
-            -F "tags=sca,syft,sbom" \
-            -F "close_old_findings=false" \
-            -F "description=SBOM gerado pelo Syft (POC SCA)"
-          echo "SBOM (Syft) enviado."
-        """
-
-        // Enviar Grype
-        sh """
-          echo "Enviando relatório Grype para DefectDojo..."
-          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=$ENGAGEMENT_ID" \
-            -F "scan_type=SARIF" \
-            -F "minimum_severity=Low" \
-            -F "active=true" \
-            -F "verified=true" \
-            -F "file=@reports/grype-report.sarif" \
-            -F "scan_date=$DATA_FINAL" \
-            -F "tags=sca,grype" \
-            -F "close_old_findings=false" \
-            -F "description=Relatório gerado pelo Grype (POC SCA)"
-          echo "Relatório Grype enviado."
-        """
-
-        // Enviar Snyk
-        sh """
-          echo "Enviando relatório Snyk para DefectDojo..."
-          curl -X POST "${DEFECTDOJO_URL}/api/v2/import-scan/" \
-            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
-            -F "engagement=$ENGAGEMENT_ID" \
-            -F "scan_type=Snyk Scan" \
-            -F "minimum_severity=Low" \
-            -F "active=true" \
-            -F "verified=true" \
-            -F "file=@reports/snyk-report.json" \
-            -F "scan_date=$DATA_FINAL" \
-            -F "tags=sca,snyk" \
-            -F "close_old_findings=false" \
-            -F "description=Relatório gerado pelo Snyk CLI (POC SCA)"
-          echo "Relatório Snyk enviado."
-        """
-      }
+        
+        // Publicar relatórios HTML no Jenkins
+        publishHTML([
+            allowMissing: true,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: 'reports',
+            reportFiles: '*.html,*.xml,*.json,*.txt,*.sarif',
+            reportName: 'Security Reports',
+            reportTitles: 'Relatórios de Segurança - SCA Pipeline'
+        ])
+        
+        // Resumo final
+        sh '''
+            echo "=== RESUMO DOS RELATÓRIOS GERADOS ==="
+            ls -la reports/ || echo "Diretório reports não encontrado"
+            echo "=== FIM DO RESUMO ==="
+        '''
     }
-  }
+}
 
   post {
       always {
