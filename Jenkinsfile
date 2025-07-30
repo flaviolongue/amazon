@@ -249,6 +249,7 @@ pipeline {
                     }
                     
                     // Enviar cada relatório
+                    sleep(5) 
                     enviarRelatorio(
                         'reports/dependency-check-report.xml',
                         'Dependency Check Scan',
@@ -263,13 +264,13 @@ pipeline {
                         'Relatório gerado pelo Trivy (POC SCA)'
                     )
                     sleep(5) 
-                    // enviarRelatorio(
-                    //     'reports/sbom.json',
-                    //     'CycloneDX Scan',
-                    //     'sca,syft,sbom',
-                    //     'SBOM gerado pelo Syft (POC SCA)'
-                    // )
-                    
+                    enviarRelatorio(
+                        'reports/sbom.json',
+                        'CycloneDX Scan',
+                        'sca,syft,sbom',
+                        'SBOM gerado pelo Syft (POC SCA)'
+                    )
+                    sleep(5) 
                     enviarRelatorio(
                         'reports/grype-report.sarif',
                         'SARIF',
