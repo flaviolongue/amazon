@@ -78,7 +78,7 @@ pipeline {
                 # Instala o Grype
                 curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b "${WORKSPACE}/tools_bin"
                 # Escaneia o SBOM gerado pelo Syft e gera relatório SARIF
-                ${WORKSPACE}/tools_bin/grype sbom.json -o sarif > reports/grype-report.sarif
+                ${WORKSPACE}/tools_bin/grype --from-file sbom.json -o sarif > reports/grype-report.sarif
                 echo 'Relatório de vulnerabilidades Grype gerado: reports/grype-report.sarif'
             '''
         }
