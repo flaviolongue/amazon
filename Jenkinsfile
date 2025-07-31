@@ -27,7 +27,7 @@ pipeline {
                                 -v "\$(pwd):/project" \
                                 -w /project \
                                 -e SNYK_TOKEN="\${SNYK_TOKEN}" \
-                                --entrypoint snyk ${image} test --json --severity-threshold=low > reports/snyk-report.json
+                                --entrypoint snyk ${image} test --json --severity-threshold=low
                              
                             if [ -f "reports/snyk-report.json" ] && [ -s "reports/snyk-report.json" ]; then
                                 echo "✅ Relatório Snyk gerado com sucesso"
