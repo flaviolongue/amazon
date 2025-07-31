@@ -98,7 +98,7 @@ pipeline {
                     chmod +x dc/dependency-check/bin/dependency-check.sh
                     # Executa o scan
                     ./dc/dependency-check/bin/dependency-check.sh \
-                        --project amazon \
+                        --project amazon-poc \
                         --scan . \
                         --format XML \
                         --out reports \
@@ -205,6 +205,22 @@ pipeline {
                     
                     // Arquivar todos os relatórios gerados
                     archiveArtifacts artifacts: 'reports/*', fingerprint: true, allowEmptyArchive: true
+                    
+                    sh '''
+                          curl -X POST "$DEFECTDOJO_URL/api/v2/import-scan/" \
+                            -H "Authorization: Token $DEFECTDOJO_TOKEN" \
+                            -F "engagement=$ENGAGEMENT_ID" \
+                            -F "scan_type=Dependency Check Scan" \
+                            -F "minimum_severity=Low" \
+                            -F "active=true" \
+                            -F "verified=true" \
+                            -F "file=@reports/dependency-check-report.xml" \
+                            -F "scan_date=$(date +%F)" \
+                            -F "tags=sca,owasp" \
+                            -F "close_old_findings=false" \
+                            -F "description=Relatório gerado pelo OWASP Dependency-Check (POC SCA)"
+                        '''
+                    
                     
                     // Função para enviar relatórios com tratamento de erro
                     def enviarRelatorio = { arquivo, scanType, tags, descricao ->
