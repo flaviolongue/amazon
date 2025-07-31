@@ -98,7 +98,7 @@ pipeline {
                     chmod +x dc/dependency-check/bin/dependency-check.sh
                     # Executa o scan
                     ./dc/dependency-check/bin/dependency-check.sh \
-                        --project pagamentos \
+                        --project amazon \
                         --scan . \
                         --format XML \
                         --out reports \
