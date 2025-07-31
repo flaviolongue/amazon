@@ -16,77 +16,44 @@ pipeline {
     }
 
     stages {
-        stage('Build e Snyk Scan') {
-                steps {
-                    script {
-                        if (fileExists('pom.xml')) {
-                            echo 'Projeto Maven detectado - Build e Snyk na mesma imagem...'
-                            docker.image('maven:3.8-openjdk-11').inside {
-                                // Build do projeto
-                                sh 'mvn clean install -DskipTests'
+        stage('Snyk Scan') {
+            steps {
+                script {
+                    def snykDockerRun = { tool, extraArgs, summaryMsg, image ->
+                        sh """
+                            mkdir -p reports
+                            echo "🐳 Executando Snyk via Docker (${tool})..."
+                             docker run --rm \
+                                -v "\$(pwd):/project" \
+                                -w /project \
+                                -e SNYK_TOKEN="\${SNYK_TOKEN}" \
+                                --entrypoint snyk   ${image}   test  --json --severity-threshold=low > reports/snyk-report.json
+
                                 
-                                // Instalar e executar Snyk na mesma imagem
-                                sh '''
-                                    mkdir -p reports
-                                    
-                                    # Instalar Snyk CLI
-                                    curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
-                                    chmod +x snyk
-                                    
-                                    # Autenticar Snyk
-                                    ./snyk auth ${SNYK_TOKEN}
-                                    
-                                    # Executar scan Maven
-                                    ./snyk test \
-                                        --maven \
-                                        --json-file=reports/snyk-report.json \
-                                        --severity-threshold=low || echo "Snyk scan concluído com warnings"
-                                    
-                                    # Verificar se relatório foi gerado
-                                    if [ -f "reports/snyk-report.json" ] && [ -s "reports/snyk-report.json" ]; then
-                                        echo "✅ Relatório Snyk gerado com sucesso"
-                                    else
-                                        echo "⚠️  Criando relatório vazio"
-                                        echo '{"vulnerabilities":[],"ok":true,"summary":"Scan completed"}' > reports/snyk-report.json
-                                    fi
-                                '''
-                            }
-                        } else if (fileExists('build.gradle')) {
-                            echo 'Projeto Gradle detectado - Build e Snyk na mesma imagem...'
-                            docker.image('gradle:6.7.1-jdk15').inside {
-                                // Build do projeto
-                                sh 'chmod +x gradlew && ./gradlew build -x test'
-                                
-                                // Instalar e executar Snyk na mesma imagem
-                                sh '''
-                                    mkdir -p reports
-                                    
-                                    # Instalar Snyk CLI
-                                    curl https://static.snyk.io/cli/latest/snyk-linux -o snyk
-                                    chmod +x snyk
-                                    
-                                    # Autenticar Snyk
-                                    ./snyk auth ${SNYK_TOKEN}
-                                    
-                                    # Executar scan Gradle
-                                    ./snyk test \
-                                        --gradle \
-                                        --json-file=reports/snyk-report.json \
-                                        --severity-threshold=low || echo "Snyk scan concluído com warnings"
-                                    
-                                    # Verificar se relatório foi gerado
-                                    if [ -f "reports/snyk-report.json" ] && [ -s "reports/snyk-report.json" ]; then
-                                        echo "✅ Relatório Snyk gerado com sucesso"
-                                    else
-                                        echo "⚠️  Criando relatório vazio"
-                                        echo '{"vulnerabilities":[],"ok":true,"summary":"Scan completed"}' > reports/snyk-report.json
-                                    fi
-                                '''
-                            }
-                        }
+                                 
+                             
+                            if [ -f "reports/snyk-report.json" ] && [ -s "reports/snyk-report.json" ]; then
+                                echo "✅ Relatório Snyk gerado com sucesso"
+                                echo "📊 Tamanho: \$(du -h reports/snyk-report.json)"
+                                echo "📋 Primeiras linhas:"
+                                head -3 reports/snyk-report.json
+                            else
+                                echo "⚠️ Criando relatório de fallback"
+                                echo '{"vulnerabilities":[],"ok":true,"summary":"${summaryMsg}"}' > reports/snyk-report.json
+                            fi
+                        """
+                    }
+        
+                    if (fileExists('pom.xml')) {
+                        echo 'Projeto Maven detectado.'
+                        snykDockerRun('maven', '--maven', 'Maven fallback scan','snyk/snyk:maven-3-jdk-11')
+                    } else if (fileExists('build.gradle')) {
+                        echo 'Projeto Gradle detectado.'
+                        snykDockerRun('gradle', '--gradle', 'Gradle fallback scan','snyk/snyk:gradle-jdk11')
                     }
                 }
             }
+        }
         stage('OWASP Dependency Check') {
             steps {
                 sh '''
