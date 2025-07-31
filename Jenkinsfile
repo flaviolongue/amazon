@@ -6,7 +6,7 @@ pipeline {
         DEFECTDOJO_URL = 'https://defectdojo.dev4cloud.online'
         // ATENÇÃO: NUNCA COLOQUE TOKENS DIRETAMENTE AQUI.
         // Use Jenkins Credentials. Crie uma credencial 'Secret text' com o ID 'DEFECTDOJO_API_KEY'
-        DEFECTDOJO_API_KEY = 'b496d5dd233e7de0fb3f27721d9a76160cfdf7a4' // credentials('DEFECTDOJO_API_KEY')
+        DEFECTDOJO_API_KEY = '21ade6c64dd206d8213448834b1da63d8a0a8210' // credentials('DEFECTDOJO_API_KEY')
         // ID do produto no DefectDojo onde os resultados serão enviados
         // Substitua '2' pelo ID real do seu produto no DefectDojo
         DEFECTDOJO_PRODUCT_ID = '2' // Exemplo: '2' para o seu produto 'amazon-poc'
