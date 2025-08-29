@@ -16,6 +16,26 @@ pipeline {
     }
 
     stages {
+        stage('SonarQube - Análise (Maven)') {
+            steps {
+              
+                    sh """
+                      mvn -B -DskipTests=true sonar:sonar \
+                        -Dsonar.projectKey=meu-projeto \
+                        -Dsonar.projectName=meu-projeto \
+                        -Dsonar.host.url=http://192.168.1.29:9000/sonarqube
+                    """
+                
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
         stage('Snyk Scan') {
             steps {
                 script {
