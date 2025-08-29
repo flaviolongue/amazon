@@ -21,8 +21,8 @@ pipeline {
               
                     sh """
                       mvn -B -DskipTests=true sonar:sonar \
-                        -Dsonar.projectKey=meu-projeto \
-                        -Dsonar.projectName=meu-projeto \
+                        -Dsonar.projectKey=Amazon-poc \
+                        -Dsonar.projectName=Amazon-poc \
                         -Dsonar.host.url=http://192.168.1.29:9000/sonarqube
                     """
                 
