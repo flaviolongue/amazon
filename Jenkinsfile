@@ -24,6 +24,7 @@ pipeline {
                         -Dsonar.projectKey=Amazon-poc \
                         -Dsonar.projectName=Amazon-poc \
                         -Dsonar.host.url=https://sonarqube.dev4cloud.online
+                        -Dsonar.token=sqa_8212d0426b96e5c4f1a32d6db30127c020babad4
                     """
                 
             }
