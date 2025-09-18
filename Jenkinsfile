@@ -23,7 +23,7 @@ pipeline {
                       mvn -B -DskipTests=true sonar:sonar \
                         -Dsonar.projectKey=Amazon-poc \
                         -Dsonar.projectName=Amazon-poc \
-                        -Dsonar.host.url=https://sonarqube.dev4cloud.online/sonarqube
+                        -Dsonar.host.url=https://sonarqube.dev4cloud.online
                     """
                 
             }
